@@ -354,7 +354,22 @@ class Listing
 		if ( !isset($pages->query['post_parent']) || $pages->query['post_parent'] == 0 ) return false;
 		if ( get_post_status($pages->query['post_parent']) == 'trash' ) return true;
 		return false;
+	}
 
+	/**
+	* Display the Menu Sync Option?
+	* @return boolean
+	*/
+	public function displaySync()
+	{
+		if ( !$this->user->canSortPages() ) return false;
+		if ( $this->post_type->name !== 'page' ) return false;
+		if ( $this->isSearch() ) return false;
+		if ( $this->settings->hideMenuSync() ) return false;
+		if ( $this->isFiltered() ) return false;
+		if ( $this->settings->menusDisabled() ) return false;
+		if ( isset($_GET['lang']) && $_GET['lang'] == 'all' ) return false;
+		return true;
 	}
 
 }
