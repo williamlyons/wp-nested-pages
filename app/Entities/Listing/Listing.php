@@ -42,6 +42,12 @@ class Listing
 	private $post_data_factory;
 
 	/**
+	* All Posts
+	* @var array of post objects
+	*/
+	private $all_posts;
+
+	/**
 	* Post Data
 	* @var object
 	*/
@@ -175,31 +181,33 @@ class Listing
 	*/
 	private function listOpening($pages, $count, $sortable = true)
 	{
+
 		if ( $this->isSearch() ) $sortable = false;
 
 		// Get array of child pages
 		$children = array();
-		$all_children = $pages->posts;
+		$all_children = $pages;
 		foreach($all_children as $child){
 			array_push($children, $child->ID);
 		}
+
 		// Compare child pages with user's toggled pages
 		$compared = array_intersect($this->listing_repo->visiblePages($this->post_type->name), $children);
 
 		// Primary List
-		if ( $count == 1 ) {
+		if ( $count == 0 ) {
 			echo ( $this->user->canSortPages() && $sortable ) 
 				? '<ol class="sortable nplist visible" id="np-' . $this->post_type->name . '">' 
-				: '<ol class="sortable no-sort nplist" visible" id="np-' . $this->post_type->name . '">';
+				: '<ol class="sortable no-sort nplist visible" id="np-' . $this->post_type->name . '">';
 			return;
 		}
 
 		// Don't create new list for child elements of posts in trash
-		if ( get_post_status($pages->query['post_parent']) == 'trash' ) return;
+		// if ( $this->all_posts[$count - 1]->post_status == 'trash' ) return;
 
 		echo '<ol class="nplist';
 		if ( count($compared) > 0 ) echo ' visible" style="display:block;';
-		echo '" id="np-' . $this->post_type->name . '">';	
+		echo '" id="np-' . $this->post_type->name . '">';
 		 
 	}
 
@@ -209,19 +217,18 @@ class Listing
 	*/
 	private function setPost($post)
 	{
-		$this->post = $this->post_data_factory->build($post);
+		$this->post = $this->post_data_factory->build($post, $this->h_taxonomies, $this->f_taxonomies);
 	}
 
 	/**
-	* Get count of published posts
-	* @param object $pages (WP Query object)
+	* Get count of published child posts
+	* @param object $post
 	*/
-	private function publishCount($pages)
+	private function publishedChildrenCount($post)
 	{
-		$publish_count = 1;
-		if ( $this->parentTrashed($pages) ) return;
-		foreach ( $pages->posts as $p ){
-			if ( $p->post_status !== 'trash' ) $publish_count++;
+		$publish_count = 0;
+		foreach ( $this->all_posts as $p ){
+			if ( $p->post_parent == $post->id && $p->post_status !== 'trash' ) $publish_count++;
 		}
 		return $publish_count;
 	}
@@ -247,10 +254,19 @@ class Listing
 	* Loop through all the pages and create the nested / sortable list
 	* Recursive Method, called in page.php view
 	*/
-	private function loopPosts($parent_id = 0, $count = 0, $nest_count = 0)
+	private function getPosts()
 	{
 		$this->setTaxonomies();
-		
+		$this->getAllPosts();
+		$this->listPostLevel();
+		return;
+	}
+
+	/**
+	* Get All the Posts
+	*/
+	private function getAllPosts()
+	{
 		if ( $this->post_type->name == 'page' ) {
 			$post_type = array('page');
 			if ( !$this->settings->menusDisabled() ) $post_type[] = 'np-redirect';
@@ -264,65 +280,77 @@ class Listing
 			'author' => $this->sort_options->author,
 			'orderby' => $this->sort_options->orderby,
 			'post_status' => array('publish', 'pending', 'draft', 'private', 'future', 'trash'),
-			'post_parent' => $parent_id,
 			'order' => $this->sort_options->order
 		);
 		
 		if ( $this->isSearch() ) $query_args = $this->searchParams($query_args);
 		if ( $this->isFiltered() ) $query_args = $this->filterParams($query_args);
-
-		$pages = new \WP_Query(apply_filters('nestedpages_page_listing', $query_args, $nest_count));
 		
-		if ( $pages->have_posts() ) :
-			$count++;
-			$nest_count++;
-
-			if ( $this->publishCount($pages) > 1 ){
-				$this->listOpening($pages, $count);			
-			}
-			
-			while ( $pages->have_posts() ) : $pages->the_post();
-
-				global $post;
-				$this->setPost($post);
-
-				if ( $this->post->status !== 'trash' ) :
-
-					echo '<li id="menuItem_' . $this->post->id . '" class="page-row';
-
-					// Published?
-					if ( $this->post->status == 'publish' ) echo ' published';
-					if ( $this->post->status == 'draft' ) echo ' draft';
-					
-					// Hidden in Nested Pages?
-					if ( $this->post->np_status == 'hide' ) echo ' np-hide';
-
-					// Taxonomies
-					echo ' ' . $this->post_repo->getTaxonomyCSS($this->post->id, $this->h_taxonomies);
-					echo ' ' . $this->post_repo->getTaxonomyCSS($this->post->id, $this->f_taxonomies, false);
-					
-					echo '">';
-					
-					$count++;
-
-					$row_view = ( $this->post->type !== 'np-redirect' ) ? 'partials/row' : 'partials/row-link';
-					include( Helpers::view($row_view) );
-
-				endif; // trash status
-				
-				if ( !$this->isSearch() ) $this->loopPosts($this->post->id, $count, $nest_count);
-
-				if ( $this->post->status !== 'trash' ) {
-					echo '</li>';
-				}				
-
-			endwhile; // Loop
-			
-			if ( $this->publishCount($pages) > 1 ){
-				echo '</ol>';
-			}
-
+		$query_args = apply_filters('nestedpages_page_listing', $query_args);
+		add_filter( 'posts_clauses', array($this, 'queryFilter') );
+		$all_posts = new \WP_Query($query_args);
+		remove_filter( 'posts_clauses', array($this, 'queryFilter') );
+		if ( $all_posts->have_posts() ) :
+			$this->all_posts = $all_posts->posts;
 		endif; wp_reset_postdata();
+	}
+
+	/**
+	* List a single tree node of posts
+	*/
+	private function listPostLevel($parent = 0, $count = 0)
+	{
+		if ( !$this->isSearch() ){
+			$pages = get_page_children($parent, $this->all_posts);
+			if ( !$pages ) return;
+			$parent_status = get_post_status($parent);
+			if ( $parent_status !== 'trash' ) $this->listOpening($pages, $count);
+		} else {
+			$pages = $this->all_posts;
+			echo '<ol class="sortable no-sort nplist visible">';
+		}
+
+		foreach($pages as $page) :
+
+			if ( $page->post_parent !== $parent && !$this->isSearch() ) continue;
+			$count++;
+			
+			global $post;
+			$post = $page;
+			$this->setPost($post);
+
+			if ( $this->post->status !== 'trash' ) :
+
+				echo '<li id="menuItem_' . $this->post->id . '" class="page-row';
+
+				// Published?
+				if ( $this->post->status == 'publish' ) echo ' published';
+				if ( $this->post->status == 'draft' ) echo ' draft';
+				
+				// Hidden in Nested Pages?
+				if ( $this->post->np_status == 'hide' ) echo ' np-hide';
+
+				// Taxonomies
+				echo $this->addTaxonomyCss();
+				
+				echo '">';
+				
+				$count++;
+
+				$row_view = ( $this->post->type !== 'np-redirect' ) ? 'partials/row' : 'partials/row-link';
+				include( Helpers::view($row_view) );
+
+			endif; // trash status
+			
+			if ( !$this->isSearch() ) $this->listPostLevel($page->ID, $count);
+			
+			if ( $this->post->status !== 'trash' ) echo '</li>';
+			
+			if ( $this->publishedChildrenCount($this->post) > 0 && !$this->isSearch() ) echo '</ol>';
+		
+		endforeach;
+
+		if ( $parent_status !== 'trash' ) echo '</ol>';
 	}
 
 	/**
@@ -331,7 +359,6 @@ class Listing
 	private function searchParams($query_args)
 	{
 		$query_args['post_title_like'] = sanitize_text_field($_GET['search']);
-		unset($query_args['post_parent']);
 		return $query_args;
 	}
 
@@ -346,16 +373,76 @@ class Listing
 	}
 
 	/**
-	* Parent Trash Status
-	* @param WP Query object
-	* @return boolean
+	* Query filter to add taxonomies to return data
+	* Fixes N+1 problem with taxonomies, eliminating need to query on every post
 	*/
-	private function parentTrashed($pages)
+	public function queryFilter($pieces)
 	{
-		if ( !isset($pages->query['post_parent']) || $pages->query['post_parent'] == 0 ) return false;
-		if ( get_post_status($pages->query['post_parent']) == 'trash' ) return true;
-		return false;
+		global $wpdb;
+		
+		// Add Hierarchical Categories
+		foreach($this->h_taxonomies as $tax){
+			$name = $tax->name;
+			$tr = 'tr_' . $tax->name;
+			$tt = 'tt_' . $tax->name;
+			$t = 't_' . $tax->name;
 
+			$pieces['join'] .= "
+				LEFT JOIN $wpdb->term_relationships AS $tr ON $tr.object_id = $wpdb->posts.ID
+				LEFT JOIN $wpdb->term_taxonomy $tt ON $tt.term_taxonomy_id = $tr.term_taxonomy_id AND $tt.taxonomy = '$name'
+				LEFT JOIN $wpdb->terms AS $t ON $t.term_id = $tt.term_id";
+			$pieces['fields'] .= ",GROUP_CONCAT(DISTINCT $t.term_id SEPARATOR ',') AS $name";
+		}
+
+		// Add Flat Categories
+		foreach($this->f_taxonomies as $tax){
+			$name = $tax->name;
+			$tr = 'tr_' . $tax->name;
+			$tt = 'tt_' . $tax->name;
+			$t = 't_' . $tax->name;
+
+			$pieces['join'] .= "
+				LEFT JOIN $wpdb->term_relationships AS $tr ON $tr.object_id = $wpdb->posts.ID
+				LEFT JOIN $wpdb->term_taxonomy $tt ON $tt.term_taxonomy_id = $tr.term_taxonomy_id AND $tt.taxonomy = '$name'
+				LEFT JOIN $wpdb->terms AS $t ON $t.term_id = $tt.term_id";
+			$pieces['fields'] .= ",GROUP_CONCAT(DISTINCT $t.term_id SEPARATOR ',') AS $name";
+		}
+
+		$pieces['groupby'] = "$wpdb->posts.ID"; 		
+		return $pieces;
+	}
+
+	/**
+	* Add taxonomy css classes
+	*/
+	private function addTaxonomyCss()
+	{
+		$out = ' ';
+		
+		// Build Hierarchical string
+		if ( count($this->h_taxonomies) > 0 ) {
+			foreach ( $this->h_taxonomies as $taxonomy ){
+				$taxname = $taxonomy->name;
+				if ( !isset($this->post->$taxname) ) continue;
+				$terms = $this->post->$taxname;
+				foreach ( $terms as $term ){
+					$out .= 'in-' . $taxonomy->name . '-' . $term . ' ';
+				}
+			}
+		}
+
+		// Build Non-Hierarchical string
+		if ( count($this->f_taxonomies) > 0 ) {
+			foreach ( $this->f_taxonomies as $taxonomy ){
+				$taxname = $taxonomy->name;
+				if ( !isset($this->post->$taxname) ) continue;
+				$terms = $this->post->$taxname;
+				foreach ( $terms as $term ){
+					$out .= 'inf-' . $taxonomy->name . '-nps-' . $term . ' ';
+				}
+			}
+		}
+		return $out;
 	}
 
 }

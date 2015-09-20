@@ -48,7 +48,7 @@
 
 
 	<div class="nestedpages">
-		<?php $this->loopPosts(); ?>
+		<?php $this->getPosts(); ?>
 		
 		<div class="quick-edit quick-edit-form np-inline-modal" style="display:none;">
 			<?php include( NestedPages\Helpers::view('forms/quickedit-post') ); ?>

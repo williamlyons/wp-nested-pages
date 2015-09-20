@@ -3,7 +3,7 @@
 * Row represents a single page
 */
 ?>
-<div class="row<?php if ( !$this->post_type->hierarchical ) echo ' non-hierarchical'; ?>" <?php if ( $this->isSearch() ) echo 'style="padding-left:10px;"';?>>
+<div class="row<?php if ( !$this->post_type->hierarchical || $this->isSearch() ) echo ' non-hierarchical'; ?>" <?php if ( $this->isSearch() ) echo 'style="padding-left:10px;"';?>>
 	
 	<?php if ( $this->post_type->hierarchical && !$this->isSearch() ) : ?>
 	<div class="child-toggle"></div>
