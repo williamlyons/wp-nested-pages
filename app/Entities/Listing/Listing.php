@@ -287,9 +287,11 @@ class Listing
 		if ( $this->isFiltered() ) $query_args = $this->filterParams($query_args);
 		
 		$query_args = apply_filters('nestedpages_page_listing', $query_args);
+		
 		add_filter( 'posts_clauses', array($this, 'queryFilter') );
 		$all_posts = new \WP_Query($query_args);
 		remove_filter( 'posts_clauses', array($this, 'queryFilter') );
+		
 		if ( $all_posts->have_posts() ) :
 			$this->all_posts = $all_posts->posts;
 		endif; wp_reset_postdata();
@@ -298,12 +300,16 @@ class Listing
 	/**
 	* List a single tree node of posts
 	*/
-	private function listPostLevel($parent = 0, $count = 0)
+	private function listPostLevel($parent = 0, $count = 0, $level = 1)
 	{
+		$continue_nest = true;
+		$continue_nest = apply_filters('nestedpages_page_nesting', $continue_nest, $level);
+
 		if ( !$this->isSearch() ){
 			$pages = get_page_children($parent, $this->all_posts);
 			if ( !$pages ) return;
 			$parent_status = get_post_status($parent);
+			$level++;
 			if ( $parent_status !== 'trash' ) $this->listOpening($pages, $count);
 		} else {
 			$pages = $this->all_posts;
@@ -342,15 +348,15 @@ class Listing
 
 			endif; // trash status
 			
-			if ( !$this->isSearch() ) $this->listPostLevel($page->ID, $count);
+			if ( !$this->isSearch() && $continue_nest ) $this->listPostLevel($page->ID, $count, $level);
 			
 			if ( $this->post->status !== 'trash' ) echo '</li>';
 			
-			if ( $this->publishedChildrenCount($this->post) > 0 && !$this->isSearch() ) echo '</ol>';
+			if ( $this->publishedChildrenCount($this->post) > 0 && !$this->isSearch() && $continue_nest ) echo '</ol>';
 		
 		endforeach;
 
-		if ( $parent_status !== 'trash' ) echo '</ol>';
+		if ( $parent_status !== 'trash' ) echo '</ol><!-- list close -->';
 	}
 
 	/**
