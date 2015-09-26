@@ -29,30 +29,26 @@ class NavMenuRepository
 		$post_id = 0;
 		
 		if ( $query == 'xfn' ){
-			$prefix = $wpdb->prefix;
-			$meta_table = $prefix . 'postmeta';
-			$sql = "SELECT post_id FROM `$meta_table` WHERE meta_value = '$id' AND meta_key = '_menu_item_xfn'";
+			$sql = "SELECT post_id FROM `$wpdb->postmeta` WHERE meta_value = '$id' AND meta_key = '_menu_item_xfn'";
 			$post_id = $wpdb->get_var($sql);
 			return ( $post_id ) ? $post_id : 0;
 		}
 
 		if ( $query == 'object_id' ){
 			$menu_id = $this->getMenuID();
-			$prefix = $wpdb->prefix;
-			$meta_table = $prefix . 'postmeta';
-			$term_relationships_table = $prefix . 'term_relationships';
-			$terms_table = $prefix . 'terms';
 			$sql = "SELECT 
 				pm.post_id,
-				t.term_id,
+				tt.term_id,
 				t.name,
 				pmx.meta_value AS xfn_type
-				FROM $meta_table AS pm
-				LEFT JOIN $term_relationships_table AS tr
+				FROM $wpdb->postmeta AS pm
+				LEFT JOIN $wpdb->term_relationships AS tr
 				ON tr.object_id = pm.post_id
-				LEFT JOIN $terms_table AS t
+				LEFT JOIN $wpdb->term_taxonomy AS tt
+				ON tt.term_taxonomy_id = tr.term_taxonomy_id
+				LEFT JOIN $wpdb->terms AS t
 				ON t.term_id = tr.term_taxonomy_id
-				LEFT JOIN $meta_table AS pmx
+				LEFT JOIN $wpdb->postmeta AS pmx
 				ON pmx.post_id = pm.post_id AND pmx.meta_key = '_menu_item_xfn'
 				WHERE pm.meta_value = $id AND pm.meta_key = '_menu_item_object_id'
 			";

@@ -92,6 +92,7 @@ If you have WordPress SEO by Yoast installed, your page score indicators are sho
 = 1.5.4 = 
 * Bug fix where saved taxonomies were only showing up after page refresh.
 * Added Nested Level parameter to listing filter.
+* Bug fix where menu taxonomy ID sometimes not being referenced correctly when retrieving menu item IDs, causing duplicate menu items.
 
 = 1.5.3 =
 * Confirmation modal added when deleting a link item.
