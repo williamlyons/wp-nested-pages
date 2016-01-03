@@ -1,4 +1,8 @@
 <div class="wrap nestedpages">
+<?php
+$syncer = new NestedPages\Entities\NavMenu\NavMenuSyncListing;
+$syncer->sync();
+?>
 	<h2 class="nestedpages-listing-title">
 		<?php _e($this->post_type->labels->name); ?>
 		

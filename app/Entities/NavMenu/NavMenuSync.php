@@ -24,7 +24,7 @@ abstract class NavMenuSync
 
 	public function __construct()
 	{
-		if ( get_option('nestedpages_menusync') !== 'sync' ) return;
+		//if ( get_option('nestedpages_menusync') !== 'sync' ) return;
 		$this->nav_menu_repo = new NavMenuRepository;
 		$this->setMenuID();
 	}

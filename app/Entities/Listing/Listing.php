@@ -202,9 +202,6 @@ class Listing
 			return;
 		}
 
-		// Don't create new list for child elements of posts in trash
-		// if ( $this->all_posts[$count - 1]->post_status == 'trash' ) return;
-
 		echo '<ol class="nplist';
 		if ( count($compared) > 0 ) echo ' visible" style="display:block;';
 		echo '" id="np-' . $this->post_type->name . '">';
